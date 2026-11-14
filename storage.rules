@@ -1,0 +1,42 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedOwner() {
+      return isVerified() && request.auth.token.email == 'elwin.george2010@gmail.com';
+    }
+
+    // Public app media (icons & screenshots)
+    match /public-media/{userId}/{appId}/{fileName} {
+      allow read: if true;
+      allow write: if isVerified()
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(png|jpeg|webp)');
+      allow delete: if isVerified() && (request.auth.uid == userId || isBootstrappedOwner());
+    }
+
+    // Private application packages: NEVER publicly readable!
+    // Downloads MUST be served through trusted Cloud Function / backend short-lived signed URLs.
+    match /packages/{userId}/{appId}/{versionId}/{fileName} {
+      allow read: if isBootstrappedOwner() || (isVerified() && request.auth.uid == userId);
+      allow write: if isVerified()
+        && request.auth.uid == userId
+        && request.resource.size <= 500 * 1024 * 1024
+        && fileName.matches('.*\\.(apk|aab|ipa|xcarchive|zip)$');
+      allow delete: if isBootstrappedOwner();
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "AppHarbor",
+  "description": "Independent community app marketplace with mandatory owner approval, malware scanning, multi-package uploads, and bilingual English/Malayalam support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

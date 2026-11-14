@@ -1,0 +1,667 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Read-only connectivity probe used on application boot
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // -------------------------------------------------------------------------
+    // Global Hardened Primitives
+    // -------------------------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedOwner() {
+      return isVerified() && request.auth.token.email == 'elwin.george2010@gmail.com';
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        isBootstrappedOwner() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isNotBlocked() {
+      return isVerified() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBlocked == false
+      );
+    }
+
+    function isValidCategory(cat) {
+      return cat in [
+        'Education', 'Productivity', 'Business', 'Tools',
+        'Entertainment', 'Photography', 'Games', 'Utilities', 'Other'
+      ];
+    }
+
+    function isValidApprovalStatus(st) {
+      return st in [
+        'PENDING_APPROVAL', 'APPROVED', 'REJECTED',
+        'CHANGES_REQUESTED', 'SUSPENDED', 'PUBLISHED'
+      ];
+    }
+
+    function isValidMalwareStatus(st) {
+      return st in ['PENDING_SCAN', 'SCANNING', 'PASSED', 'FLAGGED'];
+    }
+
+    function isValidScreenshotList(arr) {
+      return arr is list && arr.size() >= 0 && arr.size() <= 8
+        && (arr.size() < 1 || (arr[0] is string && arr[0].size() <= 1000))
+        && (arr.size() < 2 || (arr[1] is string && arr[1].size() <= 1000))
+        && (arr.size() < 3 || (arr[2] is string && arr[2].size() <= 1000))
+        && (arr.size() < 4 || (arr[3] is string && arr[3].size() <= 1000))
+        && (arr.size() < 5 || (arr[4] is string && arr[4].size() <= 1000))
+        && (arr.size() < 6 || (arr[5] is string && arr[5].size() <= 1000))
+        && (arr.size() < 7 || (arr[6] is string && arr[6].size() <= 1000))
+        && (arr.size() < 8 || (arr[7] is string && arr[7].size() <= 1000));
+    }
+
+    function isValidPackageItem(pkg) {
+      return pkg is map
+        && pkg.keys().hasAll(['packageId', 'packageType', 'fileName', 'mimeType', 'sizeBytes', 'storagePath', 'sha256', 'isDirectInstall'])
+        && pkg.keys().hasOnly(['packageId', 'packageType', 'fileName', 'mimeType', 'sizeBytes', 'storagePath', 'sha256', 'isDirectInstall', 'distributionNote', 'minOsVersion'])
+        && isValidId(pkg.packageId)
+        && pkg.packageType in ['APK', 'AAB', 'IPA', 'XCARCHIVE']
+        && pkg.fileName is string && pkg.fileName.size() >= 1 && pkg.fileName.size() <= 200
+        && pkg.mimeType is string && pkg.mimeType.size() >= 1 && pkg.mimeType.size() <= 120
+        && pkg.sizeBytes is int && pkg.sizeBytes > 0 && pkg.sizeBytes <= 524288000
+        && pkg.storagePath is string && pkg.storagePath.size() >= 1 && pkg.storagePath.size() <= 500
+        && pkg.sha256 is string && pkg.sha256.size() >= 16 && pkg.sha256.size() <= 128
+        && pkg.isDirectInstall is bool;
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints (Anti-Update-Gap)
+    // -------------------------------------------------------------------------
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'isBlocked', 'appCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'bio', 'websiteUrl', 'photoUrl', 'role', 'isBlocked', 'appCount', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 500))
+        && (!('websiteUrl' in data) || (data.websiteUrl is string && data.websiteUrl.size() <= 300))
+        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 1000))
+        && data.role in ['user', 'owner']
+        && data.isBlocked is bool
+        && data.appCount is int && data.appCount >= 0 && data.appCount <= 10000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'emailVerified', 'languagePreference', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'emailVerified', 'languagePreference', 'fcmTokensCount', 'latestFcmToken', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.emailVerified is bool
+        && data.languagePreference in ['en', 'ml']
+        && (!('fcmTokensCount' in data) || (data.fcmTokensCount is int && data.fcmTokensCount >= 0 && data.fcmTokensCount <= 20))
+        && (!('latestFcmToken' in data) || (data.latestFcmToken is string && data.latestFcmToken.size() <= 512))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidApplication(data) {
+      return data.keys().hasAll([
+          'appId', 'ownerId', 'developerName', 'name', 'shortDescription',
+          'fullDescription', 'category', 'supportedOS', 'iconUrl', 'screenshots',
+          'currentVersionId', 'currentVersionNumber', 'currentVersionCode',
+          'approvalStatus', 'ownerApproved', 'isPublished', 'malwareScanStatus',
+          'downloadCount', 'featured', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'appId', 'ownerId', 'developerName', 'name', 'shortDescription',
+          'fullDescription', 'category', 'supportedOS', 'iconUrl', 'screenshots',
+          'websiteUrl', 'privacyPolicyUrl', 'currentVersionId', 'currentVersionNumber',
+          'currentVersionCode', 'approvalStatus', 'ownerApproved', 'isPublished',
+          'malwareScanStatus', 'scanReportSummary', 'rejectionReason',
+          'changeRequestNotes', 'downloadCount', 'featured', 'createdAt',
+          'updatedAt', 'publishedAt'
+        ])
+        && isValidId(data.appId)
+        && isValidId(data.ownerId)
+        && data.developerName is string && data.developerName.size() >= 1 && data.developerName.size() <= 100
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 80
+        && data.shortDescription is string && data.shortDescription.size() >= 10 && data.shortDescription.size() <= 180
+        && data.fullDescription is string && data.fullDescription.size() >= 20 && data.fullDescription.size() <= 4000
+        && isValidCategory(data.category)
+        && data.supportedOS is list && data.supportedOS.size() >= 1 && data.supportedOS.size() <= 2
+        && data.supportedOS[0] is string && data.supportedOS.hasOnly(['Android', 'iOS'])
+        && data.iconUrl is string && data.iconUrl.size() >= 1 && data.iconUrl.size() <= 1000
+        && isValidScreenshotList(data.screenshots)
+        && (!('websiteUrl' in data) || (data.websiteUrl is string && data.websiteUrl.size() <= 500))
+        && (!('privacyPolicyUrl' in data) || (data.privacyPolicyUrl is string && data.privacyPolicyUrl.size() <= 500))
+        && isValidId(data.currentVersionId)
+        && data.currentVersionNumber is string && data.currentVersionNumber.size() >= 1 && data.currentVersionNumber.size() <= 32
+        && data.currentVersionCode is int && data.currentVersionCode >= 1 && data.currentVersionCode <= 2147483647
+        && isValidApprovalStatus(data.approvalStatus)
+        && data.ownerApproved is bool
+        && data.isPublished is bool
+        && isValidMalwareStatus(data.malwareScanStatus)
+        && (!('scanReportSummary' in data) || (data.scanReportSummary is string && data.scanReportSummary.size() <= 500))
+        && (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() <= 1000))
+        && (!('changeRequestNotes' in data) || (data.changeRequestNotes is string && data.changeRequestNotes.size() <= 1000))
+        && data.downloadCount is int && data.downloadCount >= 0
+        && data.featured is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!('publishedAt' in data) || data.publishedAt is timestamp)
+        // Strict publication invariant: cannot be published without owner approval and passed malware scan
+        && (data.isPublished == false || (data.ownerApproved == true && data.approvalStatus == 'PUBLISHED' && data.malwareScanStatus == 'PASSED'));
+    }
+
+    function isValidAppVersion(data) {
+      return data.keys().hasAll([
+          'versionId', 'appId', 'ownerId', 'versionNumber', 'versionCode',
+          'releaseNotes', 'supportedOS', 'packages', 'malwareScanStatus',
+          'approvalStatus', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'versionId', 'appId', 'ownerId', 'versionNumber', 'versionCode',
+          'releaseNotes', 'supportedOS', 'packages', 'malwareScanStatus',
+          'scanReportSummary', 'approvalStatus', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.versionId)
+        && isValidId(data.appId)
+        && isValidId(data.ownerId)
+        && data.versionNumber is string && data.versionNumber.size() >= 1 && data.versionNumber.size() <= 32
+        && data.versionCode is int && data.versionCode >= 1 && data.versionCode <= 2147483647
+        && data.releaseNotes is string && data.releaseNotes.size() >= 1 && data.releaseNotes.size() <= 2000
+        && data.supportedOS is list && data.supportedOS.size() >= 1 && data.supportedOS.size() <= 2
+        && data.supportedOS[0] is string && data.supportedOS.hasOnly(['Android', 'iOS'])
+        && data.packages is list && data.packages.size() >= 1 && data.packages.size() <= 4
+        && isValidPackageItem(data.packages[0])
+        && (data.packages.size() < 2 || isValidPackageItem(data.packages[1]))
+        && (data.packages.size() < 3 || isValidPackageItem(data.packages[2]))
+        && (data.packages.size() < 4 || isValidPackageItem(data.packages[3]))
+        && isValidMalwareStatus(data.malwareScanStatus)
+        && (!('scanReportSummary' in data) || (data.scanReportSummary is string && data.scanReportSummary.size() <= 500))
+        && isValidApprovalStatus(data.approvalStatus)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAppSubmission(data) {
+      return data.keys().hasAll([
+          'submissionId', 'appId', 'versionId', 'ownerId', 'appName',
+          'versionNumber', 'submissionType', 'status', 'submittedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'submissionId', 'appId', 'versionId', 'ownerId', 'appName',
+          'versionNumber', 'submissionType', 'status', 'reviewerNotes',
+          'submittedAt', 'updatedAt'
+        ])
+        && isValidId(data.submissionId)
+        && isValidId(data.appId)
+        && isValidId(data.versionId)
+        && isValidId(data.ownerId)
+        && data.appName is string && data.appName.size() >= 1 && data.appName.size() <= 80
+        && data.versionNumber is string && data.versionNumber.size() >= 1 && data.versionNumber.size() <= 32
+        && data.submissionType in ['NEW_APP', 'NEW_VERSION', 'UPDATE_METADATA', 'REMOVAL_REQUEST']
+        && isValidApprovalStatus(data.status)
+        && (!('reviewerNotes' in data) || (data.reviewerNotes is string && data.reviewerNotes.size() <= 1000))
+        && data.submittedAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOwnerNotification(data) {
+      return data.keys().hasAll([
+          'notificationId', 'eventType', 'uploaderId', 'uploaderName',
+          'uploaderEmail', 'isRead', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'notificationId', 'eventType', 'uploaderId', 'uploaderName',
+          'uploaderEmail', 'appId', 'appName', 'submissionId',
+          'applicationStatus', 'isRead', 'createdAt'
+        ])
+        && isValidId(data.notificationId)
+        && data.eventType in [
+          'USER_REGISTERED', 'APP_UPLOADED', 'APP_UPDATED',
+          'VERSION_SUBMITTED', 'REMOVAL_REQUESTED', 'APP_REPORTED'
+        ]
+        && isValidId(data.uploaderId)
+        && data.uploaderName is string && data.uploaderName.size() >= 1 && data.uploaderName.size() <= 100
+        && data.uploaderEmail is string && data.uploaderEmail.size() >= 3 && data.uploaderEmail.size() <= 200
+        && (!('appId' in data) || (data.appId is string && data.appId.size() <= 128))
+        && (!('appName' in data) || (data.appName is string && data.appName.size() <= 80))
+        && (!('submissionId' in data) || (data.submissionId is string && data.submissionId.size() <= 128))
+        && (!('applicationStatus' in data) || (data.applicationStatus is string && data.applicationStatus.size() <= 40))
+        && data.isRead is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidUserNotification(data) {
+      return data.keys().hasAll([
+          'notificationId', 'userId', 'title', 'message', 'status', 'isRead', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'notificationId', 'userId', 'appId', 'appName', 'title', 'message', 'status', 'isRead', 'createdAt'
+        ])
+        && isValidId(data.notificationId)
+        && isValidId(data.userId)
+        && (!('appId' in data) || (data.appId is string && data.appId.size() <= 128))
+        && (!('appName' in data) || (data.appName is string && data.appName.size() <= 80))
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 500
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 40
+        && data.isRead is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidDownloadRecord(data) {
+      return data.keys().hasAll(['recordId', 'appId', 'versionId', 'packageType', 'createdAt'])
+        && data.keys().hasOnly(['recordId', 'appId', 'versionId', 'packageType', 'downloaderUid', 'createdAt'])
+        && isValidId(data.recordId)
+        && isValidId(data.appId)
+        && isValidId(data.versionId)
+        && data.packageType in ['APK', 'AAB', 'IPA', 'XCARCHIVE']
+        && (!('downloaderUid' in data) || (data.downloaderUid is string && data.downloaderUid.size() <= 128))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidActivityLog(data) {
+      return data.keys().hasAll(['logId', 'actorUid', 'actorName', 'action', 'targetType', 'targetId', 'createdAt'])
+        && data.keys().hasOnly(['logId', 'actorUid', 'actorName', 'action', 'targetType', 'targetId', 'details', 'createdAt'])
+        && isValidId(data.logId)
+        && isValidId(data.actorUid)
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 100
+        && data.action is string && data.action.size() >= 1 && data.action.size() <= 80
+        && data.targetType is string && data.targetType.size() >= 1 && data.targetType.size() <= 40
+        && data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128
+        && (!('details' in data) || (data.details is string && data.details.size() <= 500))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAppReport(data) {
+      return data.keys().hasAll(['reportId', 'appId', 'appName', 'reporterUid', 'reason', 'details', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['reportId', 'appId', 'appName', 'reporterUid', 'reason', 'details', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.reportId)
+        && isValidId(data.appId)
+        && data.appName is string && data.appName.size() >= 1 && data.appName.size() <= 80
+        && isValidId(data.reporterUid)
+        && data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 120
+        && data.details is string && data.details.size() >= 5 && data.details.size() <= 1000
+        && data.status in ['OPEN', 'REVIEWED', 'RESOLVED', 'DISMISSED']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPlatformSettings(data) {
+      return data.keys().hasAll(['settingId', 'marketplaceName', 'requireMalwareScan', 'maxPackageSizeMb', 'allowRegistrations', 'maintenanceMode', 'updatedAt'])
+        && data.keys().hasOnly(['settingId', 'marketplaceName', 'requireMalwareScan', 'maxPackageSizeMb', 'allowRegistrations', 'maintenanceMode', 'updatedAt'])
+        && isValidId(data.settingId)
+        && data.marketplaceName is string && data.marketplaceName.size() >= 2 && data.marketplaceName.size() <= 80
+        && data.requireMalwareScan is bool
+        && data.maxPackageSizeMb is int && data.maxPackageSizeMb >= 10 && data.maxPackageSizeMb <= 1024
+        && data.allowRegistrations is bool
+        && data.maintenanceMode is bool
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+
+    // 1. Public Developer Profiles (Zero PII) + Private PII Subcollection
+    match /users/{userId} {
+      allow get: if isValidId(userId);
+      allow list: if resource.data.isBlocked == false
+        || (isSignedIn() && resource.data.uid == request.auth.uid)
+        || isBootstrappedOwner();
+
+      allow create: if isValidId(userId)
+        && isSignedIn()
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().role == 'user'
+        && incoming().isBlocked == false
+        && incoming().appCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isSignedIn()
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            request.auth.uid == userId
+            && existing().isBlocked == false
+            && incoming().role == existing().role
+            && incoming().isBlocked == existing().isBlocked
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'bio', 'websiteUrl', 'photoUrl', 'appCount', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isValidId(userId) && isAdmin();
+
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && isSignedIn()
+          && (request.auth.uid == userId || isAdmin());
+        allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isBootstrappedOwner());
+
+        allow create: if isValidId(userId) && isValidId(docId)
+          && isSignedIn()
+          && request.auth.uid == userId
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId) && isValidId(docId)
+          && isSignedIn()
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() ||
+            (
+              request.auth.uid == userId
+              && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'emailVerified', 'languagePreference', 'fcmTokensCount', 'latestFcmToken', 'updatedAt'])
+            )
+          );
+
+        allow delete: if isValidId(userId) && isValidId(docId) && isAdmin();
+      }
+    }
+
+    // 2. Trusted Owner/Admin Registry
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isBootstrappedOwner();
+      allow create, update, delete: if isValidId(userId) && isBootstrappedOwner();
+    }
+
+    // 3. Applications Catalog
+    match /applications/{appId} {
+      allow get: if isValidId(appId) && (
+        (existing().approvalStatus == 'PUBLISHED' && existing().isPublished == true && existing().ownerApproved == true)
+        || (isSignedIn() && existing().ownerId == request.auth.uid)
+        || isAdmin()
+      );
+
+      allow list: if (resource.data.approvalStatus == 'PUBLISHED' && resource.data.isPublished == true && resource.data.ownerApproved == true)
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid)
+        || isBootstrappedOwner();
+
+      // Users MUST submit as PENDING_APPROVAL, unapproved, unpublished, pending malware scan
+      allow create: if isValidId(appId)
+        && isNotBlocked()
+        && isValidApplication(incoming())
+        && incoming().appId == appId
+        && incoming().ownerId == request.auth.uid
+        && incoming().approvalStatus == 'PENDING_APPROVAL'
+        && incoming().ownerApproved == false
+        && incoming().isPublished == false
+        && incoming().malwareScanStatus == 'PENDING_SCAN'
+        && incoming().downloadCount == 0
+        && incoming().featured == false
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(appId)
+        && isValidApplication(incoming())
+        && incoming().appId == existing().appId
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Tier 1: OwnerAdmin full review, scan, approval, publish, unpublish, suspend
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'approvalStatus', 'ownerApproved', 'isPublished', 'malwareScanStatus',
+              'scanReportSummary', 'rejectionReason', 'changeRequestNotes',
+              'featured', 'publishedAt', 'downloadCount', 'updatedAt'
+            ])
+          )
+          ||
+          // Tier 2: Developer updates metadata or submits new version -> resets to PENDING_APPROVAL
+          (
+            isNotBlocked()
+            && existing().ownerId == request.auth.uid
+            && existing().approvalStatus != 'SUSPENDED'
+            && incoming().approvalStatus == 'PENDING_APPROVAL'
+            && incoming().ownerApproved == false
+            && incoming().isPublished == false
+            && incoming().malwareScanStatus == 'PENDING_SCAN'
+            && incoming().downloadCount == existing().downloadCount
+            && incoming().featured == existing().featured
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'developerName', 'name', 'shortDescription', 'fullDescription',
+              'category', 'supportedOS', 'iconUrl', 'screenshots', 'websiteUrl',
+              'privacyPolicyUrl', 'currentVersionId', 'currentVersionNumber',
+              'currentVersionCode', 'approvalStatus', 'ownerApproved',
+              'isPublished', 'malwareScanStatus', 'updatedAt'
+            ])
+          )
+          ||
+          // Tier 3: Public/verified download counter increment (+1 only) on published apps
+          (
+            existing().approvalStatus == 'PUBLISHED'
+            && existing().isPublished == true
+            && existing().ownerApproved == true
+            && incoming().downloadCount == existing().downloadCount + 1
+            && incoming().diff(existing()).affectedKeys().hasOnly(['downloadCount', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isValidId(appId) && isAdmin();
+    }
+
+    // 4. Application Versions & Packages
+    match /appVersions/{versionId} {
+      allow get: if isValidId(versionId) && (
+        existing().approvalStatus == 'PUBLISHED'
+        || (isSignedIn() && existing().ownerId == request.auth.uid)
+        || isAdmin()
+      );
+
+      allow list: if resource.data.approvalStatus == 'PUBLISHED'
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid)
+        || isBootstrappedOwner();
+
+      allow create: if isValidId(versionId)
+        && isNotBlocked()
+        && isValidAppVersion(incoming())
+        && incoming().versionId == versionId
+        && incoming().ownerId == request.auth.uid
+        && incoming().approvalStatus == 'PENDING_APPROVAL'
+        && incoming().malwareScanStatus == 'PENDING_SCAN'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/applications/$(incoming().appId))
+        && get(/databases/$(database)/documents/applications/$(incoming().appId)).data.ownerId == request.auth.uid;
+
+      allow update: if isValidId(versionId)
+        && isAdmin()
+        && isValidAppVersion(incoming())
+        && incoming().versionId == existing().versionId
+        && incoming().appId == existing().appId
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'approvalStatus', 'malwareScanStatus', 'scanReportSummary', 'updatedAt'
+        ]);
+
+      allow delete: if isValidId(versionId) && isAdmin();
+    }
+
+    // 5. Application Submissions (Audit History)
+    match /appSubmissions/{submissionId} {
+      allow get: if isValidId(submissionId) && isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isBootstrappedOwner());
+
+      allow create: if isValidId(submissionId)
+        && isNotBlocked()
+        && isValidAppSubmission(incoming())
+        && incoming().submissionId == submissionId
+        && incoming().ownerId == request.auth.uid
+        && incoming().status == 'PENDING_APPROVAL'
+        && incoming().submittedAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(submissionId)
+        && isAdmin()
+        && isValidAppSubmission(incoming())
+        && incoming().submissionId == existing().submissionId
+        && incoming().ownerId == existing().ownerId
+        && incoming().submittedAt == existing().submittedAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reviewerNotes', 'updatedAt']);
+
+      allow delete: if isValidId(submissionId) && isAdmin();
+    }
+
+    // 6. Owner Private Notifications (Readable ONLY by OwnerAdmin; users create alerts for their own actions)
+    match /ownerNotifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isAdmin();
+      allow list: if isBootstrappedOwner();
+
+      allow create: if isValidId(notificationId)
+        && ((incoming().eventType == 'USER_REGISTERED' && isSignedIn()) || isVerified())
+        && isValidOwnerNotification(incoming())
+        && incoming().notificationId == notificationId
+        && incoming().uploaderId == request.auth.uid
+        && incoming().isRead == false
+        && incoming().createdAt == request.time;
+
+      allow update: if isValidId(notificationId)
+        && isAdmin()
+        && isValidOwnerNotification(incoming())
+        && incoming().notificationId == existing().notificationId
+        && incoming().uploaderId == existing().uploaderId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+
+      allow delete: if isValidId(notificationId) && isAdmin();
+    }
+
+    // 7. User Notifications
+    match /userNotifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isBootstrappedOwner());
+
+      allow create: if isValidId(notificationId)
+        && isAdmin()
+        && isValidUserNotification(incoming())
+        && incoming().notificationId == notificationId
+        && incoming().isRead == false
+        && incoming().createdAt == request.time;
+
+      allow update: if isValidId(notificationId)
+        && isSignedIn()
+        && (existing().userId == request.auth.uid || isAdmin())
+        && isValidUserNotification(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+
+      allow delete: if isValidId(notificationId) && (isAdmin() || (isSignedIn() && existing().userId == request.auth.uid));
+    }
+
+    // 8. Download Records
+    match /downloadRecords/{recordId} {
+      allow get: if isValidId(recordId) && isSignedIn() && (existing().downloaderUid == request.auth.uid || isAdmin());
+      allow list: if isBootstrappedOwner() || (isSignedIn() && resource.data.downloaderUid == request.auth.uid);
+
+      allow create: if isValidId(recordId)
+        && isValidDownloadRecord(incoming())
+        && incoming().recordId == recordId
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/applications/$(incoming().appId))
+        && get(/databases/$(database)/documents/applications/$(incoming().appId)).data.isPublished == true
+        && get(/databases/$(database)/documents/applications/$(incoming().appId)).data.ownerApproved == true
+        && get(/databases/$(database)/documents/applications/$(incoming().appId)).data.approvalStatus == 'PUBLISHED';
+
+      allow update, delete: if isValidId(recordId) && isAdmin();
+    }
+
+    // 9. Activity Logs
+    match /activityLogs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isBootstrappedOwner();
+
+      allow create: if isValidId(logId)
+        && isSignedIn()
+        && isValidActivityLog(incoming())
+        && incoming().logId == logId
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+
+      allow update, delete: if isValidId(logId) && isAdmin();
+    }
+
+    // 10. App Reports
+    match /appReports/{reportId} {
+      allow get: if isValidId(reportId) && isSignedIn() && (existing().reporterUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.reporterUid == request.auth.uid || isBootstrappedOwner());
+
+      allow create: if isValidId(reportId)
+        && isVerified()
+        && isValidAppReport(incoming())
+        && incoming().reportId == reportId
+        && incoming().reporterUid == request.auth.uid
+        && incoming().status == 'OPEN'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/applications/$(incoming().appId));
+
+      allow update: if isValidId(reportId)
+        && isAdmin()
+        && isValidAppReport(incoming())
+        && incoming().reportId == existing().reportId
+        && incoming().reporterUid == existing().reporterUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if isValidId(reportId) && isAdmin();
+    }
+
+    // 11. Platform Settings
+    match /platformSettings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if resource.data.settingId == 'global' || isBootstrappedOwner();
+
+      allow create, update: if isValidId(settingId)
+        && isAdmin()
+        && isValidPlatformSettings(incoming())
+        && incoming().settingId == settingId
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+  }
+}

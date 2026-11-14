@@ -1,0 +1,271 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public developer profile without PII.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "websiteUrl": { "type": "string", "maxLength": 300 },
+        "photoUrl": { "type": "string", "maxLength": 1000 },
+        "role": { "type": "string", "enum": ["user", "owner"] },
+        "isBlocked": { "type": "boolean" },
+        "appCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "role", "isBlocked", "appCount", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "PII-isolated private user metadata (email, verification status, FCM tokens).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "emailVerified": { "type": "boolean" },
+        "languagePreference": { "type": "string", "enum": ["en", "ml"] },
+        "fcmTokensCount": { "type": "integer" },
+        "latestFcmToken": { "type": "string", "maxLength": 512 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "emailVerified", "languagePreference", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted server-managed Owner/Admin role marker.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": { "type": "string", "enum": ["owner"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "role", "createdAt"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "Marketplace application catalog record.",
+      "type": "object",
+      "properties": {
+        "appId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "developerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "shortDescription": { "type": "string", "minLength": 10, "maxLength": 180 },
+        "fullDescription": { "type": "string", "minLength": 20, "maxLength": 4000 },
+        "category": { "type": "string", "enum": ["Education", "Productivity", "Business", "Tools", "Entertainment", "Photography", "Games", "Utilities", "Other"] },
+        "supportedOS": { "type": "array", "description": "Bounded list of up to 2 OS identifiers (Android, iOS)." },
+        "iconUrl": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "screenshots": { "type": "array", "description": "Bounded list of up to 8 screenshot URLs." },
+        "websiteUrl": { "type": "string", "maxLength": 500 },
+        "privacyPolicyUrl": { "type": "string", "maxLength": 500 },
+        "currentVersionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "currentVersionNumber": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "currentVersionCode": { "type": "integer" },
+        "approvalStatus": { "type": "string", "enum": ["PENDING_APPROVAL", "APPROVED", "REJECTED", "CHANGES_REQUESTED", "SUSPENDED", "PUBLISHED"] },
+        "ownerApproved": { "type": "boolean" },
+        "isPublished": { "type": "boolean" },
+        "malwareScanStatus": { "type": "string", "enum": ["PENDING_SCAN", "SCANNING", "PASSED", "FLAGGED"] },
+        "scanReportSummary": { "type": "string", "maxLength": 500 },
+        "rejectionReason": { "type": "string", "maxLength": 1000 },
+        "changeRequestNotes": { "type": "string", "maxLength": 1000 },
+        "downloadCount": { "type": "integer" },
+        "featured": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "publishedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["appId", "ownerId", "developerName", "name", "shortDescription", "fullDescription", "category", "supportedOS", "iconUrl", "screenshots", "currentVersionId", "currentVersionNumber", "currentVersionCode", "approvalStatus", "ownerApproved", "isPublished", "malwareScanStatus", "downloadCount", "featured", "createdAt", "updatedAt"]
+    },
+    "AppVersion": {
+      "title": "AppVersion",
+      "description": "Specific version and package artifacts for an application.",
+      "type": "object",
+      "properties": {
+        "versionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "appId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "versionNumber": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "versionCode": { "type": "integer" },
+        "releaseNotes": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "supportedOS": { "type": "array", "description": "Bounded list of supported OS." },
+        "packages": { "type": "array", "description": "Bounded list of up to 4 package metadata maps." },
+        "malwareScanStatus": { "type": "string", "enum": ["PENDING_SCAN", "SCANNING", "PASSED", "FLAGGED"] },
+        "scanReportSummary": { "type": "string", "maxLength": 500 },
+        "approvalStatus": { "type": "string", "enum": ["PENDING_APPROVAL", "APPROVED", "REJECTED", "CHANGES_REQUESTED", "SUSPENDED", "PUBLISHED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["versionId", "appId", "ownerId", "versionNumber", "versionCode", "releaseNotes", "supportedOS", "packages", "malwareScanStatus", "approvalStatus", "createdAt", "updatedAt"]
+    },
+    "AppSubmission": {
+      "title": "AppSubmission",
+      "description": "Audit trail of app submissions, updates, and removal requests.",
+      "type": "object",
+      "properties": {
+        "submissionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "appId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "versionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "appName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "versionNumber": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "submissionType": { "type": "string", "enum": ["NEW_APP", "NEW_VERSION", "UPDATE_METADATA", "REMOVAL_REQUEST"] },
+        "status": { "type": "string", "enum": ["PENDING_APPROVAL", "APPROVED", "REJECTED", "CHANGES_REQUESTED", "SUSPENDED", "PUBLISHED"] },
+        "reviewerNotes": { "type": "string", "maxLength": 1000 },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["submissionId", "appId", "versionId", "ownerId", "appName", "versionNumber", "submissionType", "status", "submittedAt", "updatedAt"]
+    },
+    "OwnerNotification": {
+      "title": "OwnerNotification",
+      "description": "Private Owner-only notification record containing uploader PII.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventType": { "type": "string", "enum": ["USER_REGISTERED", "APP_UPLOADED", "APP_UPDATED", "VERSION_SUBMITTED", "REMOVAL_REQUESTED", "APP_REPORTED"] },
+        "uploaderId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uploaderName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "uploaderEmail": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "appId": { "type": "string", "maxLength": 128 },
+        "appName": { "type": "string", "maxLength": 80 },
+        "submissionId": { "type": "string", "maxLength": 128 },
+        "applicationStatus": { "type": "string", "maxLength": 40 },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["notificationId", "eventType", "uploaderId", "uploaderName", "uploaderEmail", "isRead", "createdAt"]
+    },
+    "UserNotification": {
+      "title": "UserNotification",
+      "description": "Status update notification sent to the app developer.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "appId": { "type": "string", "maxLength": 128 },
+        "appName": { "type": "string", "maxLength": 80 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "status": { "type": "string", "maxLength": 40 },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["notificationId", "userId", "title", "message", "status", "isRead", "createdAt"]
+    },
+    "DownloadRecord": {
+      "title": "DownloadRecord",
+      "description": "Verified download audit log entry.",
+      "type": "object",
+      "properties": {
+        "recordId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "appId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "versionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "packageType": { "type": "string", "enum": ["APK", "AAB", "IPA", "XCARCHIVE"] },
+        "downloaderUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recordId", "appId", "versionId", "packageType", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Platform security and governance audit log.",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "action": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "targetType": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["logId", "actorUid", "actorName", "action", "targetType", "targetId", "createdAt"]
+    },
+    "AppReport": {
+      "title": "AppReport",
+      "description": "Community report against an application.",
+      "type": "object",
+      "properties": {
+        "reportId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "appId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "appName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "reporterUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reason": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "details": { "type": "string", "minLength": 5, "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["OPEN", "REVIEWED", "RESOLVED", "DISMISSED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reportId", "appId", "appName", "reporterUid", "reason", "details", "status", "createdAt", "updatedAt"]
+    },
+    "PlatformSettings": {
+      "title": "PlatformSettings",
+      "description": "Global marketplace governance settings.",
+      "type": "object",
+      "properties": {
+        "settingId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "marketplaceName": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "requireMalwareScan": { "type": "boolean" },
+        "maxPackageSizeMb": { "type": "integer" },
+        "allowRegistrations": { "type": "boolean" },
+        "maintenanceMode": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["settingId", "marketplaceName", "requireMalwareScan", "maxPackageSizeMb", "allowRegistrations", "maintenanceMode", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public developer profiles (PII isolated in subcollection)."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Private PII user records (email, FCM tokens) strictly for owner or account holder."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Owner/admin role registry."
+    },
+    "/applications/{appId}": {
+      "schema": { "$ref": "#/entities/Application" },
+      "description": "Marketplace application catalog; public reads restricted to PUBLISHED & ownerApproved."
+    },
+    "/appVersions/{versionId}": {
+      "schema": { "$ref": "#/entities/AppVersion" },
+      "description": "Application versions and package artifact descriptors."
+    },
+    "/appSubmissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/AppSubmission" },
+      "description": "Submission history and review status records."
+    },
+    "/ownerNotifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/OwnerNotification" },
+      "description": "Private Owner-only notifications for registrations, uploads, updates, and removals."
+    },
+    "/userNotifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/UserNotification" },
+      "description": "Developer notifications on submission review outcomes."
+    },
+    "/downloadRecords/{recordId}": {
+      "schema": { "$ref": "#/entities/DownloadRecord" },
+      "description": "Recorded download audit trail."
+    },
+    "/activityLogs/{logId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Security and administrative audit logs."
+    },
+    "/appReports/{reportId}": {
+      "schema": { "$ref": "#/entities/AppReport" },
+      "description": "Inappropriate application reports submitted by users."
+    },
+    "/platformSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/PlatformSettings" },
+      "description": "Marketplace-wide configuration controlled by the Owner."
+    }
+  }
+}
