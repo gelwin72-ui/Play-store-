@@ -48,6 +48,24 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 
+function safeReadStorage(key: string): string | null {
+  try {
+    return typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteStorage(key: string, value: string): void {
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(key, value);
+    }
+  } catch {
+    // Ignore storage quota or sandbox restrictions
+  }
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -56,12 +74,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isOwner, setIsOwner] = useState(false);
 
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('appharbor_theme');
+    const saved = safeReadStorage('appharbor_theme');
     return saved === 'dark' ? 'dark' : 'light';
   });
 
   const [language, setLanguageState] = useState<Language>(() => {
-    const saved = localStorage.getItem('appharbor_lang');
+    const saved = safeReadStorage('appharbor_lang');
     return saved === 'ml' ? 'ml' : 'en';
   });
 
@@ -85,7 +103,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = useCallback((mode: ThemeMode) => {
     setThemeState(mode);
-    localStorage.setItem('appharbor_theme', mode);
+    safeWriteStorage('appharbor_theme', mode);
   }, []);
 
   useEffect(() => {
@@ -99,7 +117,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('appharbor_lang', lang);
+    safeWriteStorage('appharbor_lang', lang);
   }, []);
 
   const languageRef = React.useRef<Language>(language);

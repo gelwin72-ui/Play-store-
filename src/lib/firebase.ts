@@ -6,7 +6,7 @@ import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messagi
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
@@ -107,7 +107,7 @@ export async function requestFcmToken(vapidKey?: string): Promise<string | null>
     if (permission !== 'granted') return null;
 
     const messaging = getMessaging(app);
-    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
     const token = await getToken(messaging, {
       vapidKey: vapidKey || undefined,
       serviceWorkerRegistration: registration,

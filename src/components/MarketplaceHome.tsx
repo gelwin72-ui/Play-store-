@@ -14,6 +14,10 @@ import { CATEGORY_LABELS, UI_TEXT } from '../i18n/translations';
 import { fetchPublishedApplications } from '../services/marketplaceService';
 import type { AppCategory, ApplicationDoc, SupportedOS } from '../types';
 import { APP_CATEGORIES } from '../types';
+import heroMarketplaceImg from '../assets/images/hero_marketplace_showcase_1794651219018.jpg';
+import categoryProductivityImg from '../assets/images/category_productivity_art_1794651219320.jpg';
+import categoryPhotographyImg from '../assets/images/category_photography_art_1794651219966.jpg';
+import emptyVaultImg from '../assets/images/empty_vault_illustration_1794651220227.jpg';
 
 type SortMode = 'featured' | 'recent' | 'popular';
 
@@ -205,7 +209,7 @@ export function MarketplaceHome() {
           </div>
           <div className="relative min-h-[260px] bg-slate-100 dark:bg-slate-800 lg:col-span-6">
             <img
-              src="/src/assets/images/hero_marketplace_showcase_1794651219018.jpg"
+              src={heroMarketplaceImg}
               alt="Curated Android and iOS applications displayed on minimalist hardware"
               referrerPolicy="no-referrer"
               className="h-full w-full object-cover"
@@ -292,7 +296,7 @@ export function MarketplaceHome() {
           <div className="grid grid-cols-1 items-center gap-8 rounded-2xl border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900 md:grid-cols-12">
             <div className="md:col-span-5 overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800">
               <img
-                src="/src/assets/images/empty_vault_illustration_1794651220227.jpg"
+                src={emptyVaultImg}
                 alt="Secured application review vault"
                 referrerPolicy="no-referrer"
                 className="h-56 w-full object-cover"
@@ -330,7 +334,7 @@ export function MarketplaceHome() {
       <section className="grid grid-cols-1 gap-6 border-t border-slate-200 pt-10 dark:border-slate-800 md:grid-cols-2">
         <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 sm:flex-row">
           <img
-            src="/src/assets/images/category_productivity_art_1794651219320.jpg"
+            src={categoryProductivityImg}
             alt="Developer submission inspection workflow"
             referrerPolicy="no-referrer"
             className="h-44 w-full object-cover sm:h-auto sm:w-44 shrink-0"
@@ -348,7 +352,7 @@ export function MarketplaceHome() {
 
         <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 sm:flex-row">
           <img
-            src="/src/assets/images/category_photography_art_1794651219966.jpg"
+            src={categoryPhotographyImg}
             alt="Short-lived signed distribution links"
             referrerPolicy="no-referrer"
             className="h-44 w-full object-cover sm:h-auto sm:w-44 shrink-0"

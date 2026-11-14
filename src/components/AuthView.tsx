@@ -32,8 +32,17 @@ export function AuthView() {
       pushToast('success', 'Signed in with Google.');
       setRoute('dashboard');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Google Sign-In failed.';
-      setErrorMsg(msg);
+      const raw = err instanceof Error ? err.message : 'Google Sign-In failed.';
+      if (raw.includes('auth/unauthorized-domain')) {
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+        setErrorMsg(
+          `Add "${host}" to Firebase Console -> Authentication -> Settings -> Authorized domains to enable Google Sign-In on this hosted URL.`
+        );
+      } else if (raw.includes('auth/popup-blocked')) {
+        setErrorMsg('Sign-in popup was blocked by your browser. Allow popups for this site and try again.');
+      } else {
+        setErrorMsg(raw);
+      }
     } finally {
       setLoading(false);
     }
